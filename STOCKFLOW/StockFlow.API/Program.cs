@@ -94,6 +94,24 @@ var app = builder.Build();
 
 
 // =====================================================
+// Seed Initial Admin
+// =====================================================
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider
+        .GetRequiredService<ApplicationDbContext>();
+
+    var passwordHasher = scope.ServiceProvider
+        .GetRequiredService<IPasswordHasher>();
+
+    await AdminSeeder.SeedAsync(
+        context,
+        passwordHasher);
+}
+
+
+// =====================================================
 // HTTP Request Pipeline
 // =====================================================
 
