@@ -1,33 +1,82 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using StockFlow.Application.DTOs;
 using StockFlow.Application.Interfaces;
 
-namespace StockFlow.API.Controllers
+namespace StockFlow.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class CategoriesController : ControllerBase
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class CategoriesController : ControllerBase
+    private readonly ICategoryService _categoryService;
+
+    public CategoriesController(ICategoryService categoryService)
     {
-        private readonly ICategoryService _categoryService;
+        _categoryService = categoryService;
+    }
 
-        public CategoriesController(ICategoryService categoryService)
+    // User + Admin
+    [HttpGet]
+    public async Task<ActionResult<List<CategoryResponseDto>>> GetAll()
+    {
+        var categories = await _categoryService.GetAllAsync();
+
+        return Ok(categories);
+    }
+
+    // User + Admin
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<CategoryResponseDto>> GetById(int id)
+    {
+        var category = await _categoryService.GetByIdAsync(id);
+
+        if (category is null)
         {
-            _categoryService = categoryService;
+            return NotFound(new
+            {
+                message = "Category not found."
+            });
         }
 
-        [HttpGet]
-        public async Task<ActionResult<List<CategoryResponseDto>>> GetAll()
-        {
-            var categories = await _categoryService.GetAllAsync();
+        return Ok(category);
+    }
 
-            return Ok(categories);
+    // Admin only
+    [Authorize(Roles = "Admin")]
+    [HttpPost]
+    public async Task<ActionResult<CategoryResponseDto>> Create(
+        CreateCategoryDto dto)
+    {
+        try
+        {
+            var category = await _categoryService.CreateAsync(dto);
+
+            return CreatedAtAction(
+                nameof(GetById),
+                new { id = category.Id },
+                category);
         }
-
-        [HttpGet("{id:int}")]
-        public async Task<ActionResult<CategoryResponseDto>> GetById(int id)
+        catch (InvalidOperationException ex)
         {
-            var category = await _categoryService.GetByIdAsync(id);
+            return Conflict(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
+    // Admin only
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<CategoryResponseDto>> Update(
+        int id,
+        UpdateCategoryDto dto)
+    {
+        try
+        {
+            var category = await _categoryService.UpdateAsync(id, dto);
 
             if (category is null)
             {
@@ -39,81 +88,40 @@ namespace StockFlow.API.Controllers
 
             return Ok(category);
         }
-
-        [HttpPost]
-        public async Task<ActionResult<CategoryResponseDto>> Create(
-            CreateCategoryDto dto)
+        catch (InvalidOperationException ex)
         {
-            try
+            return Conflict(new
             {
-                var category = await _categoryService.CreateAsync(dto);
-
-                return CreatedAtAction(
-                    nameof(GetById),
-                    new { id = category.Id },
-                    category);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(new
-                {
-                    message = ex.Message
-                });
-            }
+                message = ex.Message
+            });
         }
+    }
 
-        [HttpPut("{id:int}")]
-        public async Task<ActionResult<CategoryResponseDto>> Update(
-            int id,
-            UpdateCategoryDto dto)
+    // Admin only
+    [Authorize(Roles = "Admin")]
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        try
         {
-            try
-            {
-                var category = await _categoryService.UpdateAsync(id, dto);
+            var deleted = await _categoryService.DeleteAsync(id);
 
-                if (category is null)
-                {
-                    return NotFound(new
-                    {
-                        message = "Category not found."
-                    });
-                }
-
-                return Ok(category);
-            }
-            catch (InvalidOperationException ex)
+            if (!deleted)
             {
-                return Conflict(new
+                return NotFound(new
                 {
-                    message = ex.Message
+                    message = "Category not found."
                 });
             }
+
+            return NoContent();
         }
-
-        [HttpDelete("{id:int}")]
-        public async Task<IActionResult> Delete(int id)
+        catch (InvalidOperationException ex)
         {
-            try
+            return Conflict(new
             {
-                var deleted = await _categoryService.DeleteAsync(id);
-
-                if (!deleted)
-                {
-                    return NotFound(new
-                    {
-                        message = "Category not found."
-                    });
-                }
-
-                return NoContent();
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(new
-                {
-                    message = ex.Message
-                });
-            }
+                message = ex.Message
+            });
         }
     }
 }

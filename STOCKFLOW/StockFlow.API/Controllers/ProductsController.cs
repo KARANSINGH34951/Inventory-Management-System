@@ -1,32 +1,82 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using StockFlow.Application.DTOs;
 using StockFlow.Application.Interfaces;
 
-namespace StockFlow.API.Controllers
+namespace StockFlow.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class ProductsController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class ProductsController : ControllerBase
+    private readonly IProductService _productService;
+
+    public ProductsController(IProductService productService)
     {
-        private readonly IProductService _productService;
+        _productService = productService;
+    }
 
-        public ProductsController(IProductService productService)
+    // User + Admin
+    [HttpGet]
+    public async Task<ActionResult<List<ProductResponseDto>>> GetAll()
+    {
+        var products = await _productService.GetAllAsync();
+
+        return Ok(products);
+    }
+
+    // User + Admin
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<ProductResponseDto>> GetById(int id)
+    {
+        var product = await _productService.GetByIdAsync(id);
+
+        if (product is null)
         {
-            _productService = productService;
+            return NotFound(new
+            {
+                message = "Product not found."
+            });
         }
 
-        [HttpGet]
-        public async Task<ActionResult<List<ProductResponseDto>>> GetAll()
-        {
-            var products = await _productService.GetAllAsync();
+        return Ok(product);
+    }
 
-            return Ok(products);
+    // Admin only
+    [Authorize(Roles = "Admin")]
+    [HttpPost]
+    public async Task<ActionResult<ProductResponseDto>> Create(
+        CreateProductDto dto)
+    {
+        try
+        {
+            var product = await _productService.CreateAsync(dto);
+
+            return CreatedAtAction(
+                nameof(GetById),
+                new { id = product.Id },
+                product);
         }
-
-        [HttpGet("{id:int}")]
-        public async Task<ActionResult<ProductResponseDto>> GetById(int id)
+        catch (InvalidOperationException ex)
         {
-            var product = await _productService.GetByIdAsync(id);
+            return Conflict(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
+    // Admin only
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<ProductResponseDto>> Update(
+        int id,
+        UpdateProductDto dto)
+    {
+        try
+        {
+            var product = await _productService.UpdateAsync(id, dto);
 
             if (product is null)
             {
@@ -38,71 +88,30 @@ namespace StockFlow.API.Controllers
 
             return Ok(product);
         }
-
-        [HttpPost]
-        public async Task<ActionResult<ProductResponseDto>> Create(
-            CreateProductDto dto)
+        catch (InvalidOperationException ex)
         {
-            try
+            return Conflict(new
             {
-                var product = await _productService.CreateAsync(dto);
+                message = ex.Message
+            });
+        }
+    }
 
-                return CreatedAtAction(
-                    nameof(GetById),
-                    new { id = product.Id },
-                    product);
-            }
-            catch (InvalidOperationException ex)
+    // Admin only
+    [Authorize(Roles = "Admin")]
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var deleted = await _productService.DeleteAsync(id);
+
+        if (!deleted)
+        {
+            return NotFound(new
             {
-                return Conflict(new
-                {
-                    message = ex.Message
-                });
-            }
+                message = "Product not found."
+            });
         }
 
-        [HttpPut("{id:int}")]
-        public async Task<ActionResult<ProductResponseDto>> Update(
-            int id,
-            UpdateProductDto dto)
-        {
-            try
-            {
-                var product = await _productService.UpdateAsync(id, dto);
-
-                if (product is null)
-                {
-                    return NotFound(new
-                    {
-                        message = "Product not found."
-                    });
-                }
-
-                return Ok(product);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(new
-                {
-                    message = ex.Message
-                });
-            }
-        }
-
-        [HttpDelete("{id:int}")]
-        public async Task<IActionResult> Delete(int id)
-        {
-            var deleted = await _productService.DeleteAsync(id);
-
-            if (!deleted)
-            {
-                return NotFound(new
-                {
-                    message = "Product not found."
-                });
-            }
-
-            return NoContent();
-        }
+        return NoContent();
     }
 }
